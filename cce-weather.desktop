@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Weather
+Comment=Current conditions and forecast (Open-Meteo)
+Exec=cce-weather
+Icon=cce-weather
+Categories=Utility;
+Terminal=false
+StartupNotify=true
+StartupWMClass=cce-weather
