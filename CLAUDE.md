@@ -16,9 +16,14 @@ particular to this crate.
   worker threads; results come back through the loop's `Sender`. The
   requested field lists and the serde structs move together.
 - `src/config.rs` — config, state, units.
-- `src/glyph.rs` — WMO code → words, and a glyph drawn from prims (no
-  artwork). Colours are sRGB constants sent through `to_linear`: prim colours
-  are linear, and raw sRGB values draw washed out.
+- `src/glyph.rs` — WMO code → words and → glyph. The glyphs are the
+  cce-icons set's multicolour `weather-*` family (sun, moon, clouds, rain,
+  snow, bolt in their own colours), drawn with `PaintCtx::icon_untinted` —
+  never `icon`, which would tint them one colour. Clear and partly cloudy
+  have a night variant (`is_day`); the rest are one glyph for both. Every
+  icon this app draws comes from that set; the refresh button's text
+  fallback is the word "Refresh". Without `CCE_ICONS_DIR` reaching the set
+  (a shadow's isolated HOME), every glyph draws blank.
 
 ## Data
 

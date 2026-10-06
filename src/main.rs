@@ -658,7 +658,7 @@ impl Application for WeatherApp {
         let mut app = Self {
             search: TextBox::new(String::new()).with_placeholder("Search for a city…"),
             units_btn: Button::new(0.0, 0.0, 0.0, 0.0).with_label(units.toggled().temp_suffix()),
-            refresh_btn: Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "↻"),
+            refresh_btn: Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "Refresh"),
             results_btns: std::array::from_fn(|_| Button::new_list_row(0.0, 0.0, 0.0, 0.0).with_label("")),
             chosen_location: state.location.clone(),
             chosen_units: state.units,

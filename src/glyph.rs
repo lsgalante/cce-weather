@@ -1,11 +1,9 @@
-//! WMO weather codes: their wording, and a glyph for each drawn from prims
-//! (circles, arcs, strokes) so the app ships no artwork and every glyph
-//! scales with the size it is asked for.
-
-use std::f32::consts::{PI, TAU};
+//! WMO weather codes: their wording, and the glyph for each — one of the
+//! multicolour `weather-*` glyphs of the cce-icons set, drawn through
+//! cce-ui's `PaintCtx::icon_untinted`.
 
 use cce_ui::scene::layout::Rect;
-use cce_ui::scene::paint::{Cap, PaintCtx};
+use cce_ui::scene::paint::PaintCtx;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sky {
@@ -50,119 +48,28 @@ pub fn describe(code: u8) -> (Sky, &'static str) {
     }
 }
 
-// sRGB, as a designer reads them; prim colours are linear, so every use goes
-// through `lin`.
-const SUN: [f32; 4] = [1.0, 0.72, 0.18, 1.0];
-const MOON: [f32; 4] = [0.86, 0.88, 0.95, 1.0];
-const CLOUD: [f32; 4] = [0.80, 0.83, 0.88, 1.0];
-const CLOUD_DARK: [f32; 4] = [0.52, 0.55, 0.62, 1.0];
-const RAIN: [f32; 4] = [0.36, 0.62, 1.0, 1.0];
-const SNOW: [f32; 4] = [0.94, 0.96, 1.0, 1.0];
-const BOLT: [f32; 4] = [1.0, 0.84, 0.25, 1.0];
-
-fn lin(c: [f32; 4]) -> [f32; 4] {
-    cce_ui::color::to_linear(c)
+/// The cce-icons glyph for `sky`. `day` picks sun or moon for the clear and
+/// partly-cloudy skies; the rest have one glyph for day and night alike.
+pub fn icon_name(sky: Sky, day: bool) -> &'static str {
+    match (sky, day) {
+        (Sky::Clear, true) => "weather-clear-day",
+        (Sky::Clear, false) => "weather-clear-night",
+        (Sky::PartlyCloudy, true) => "weather-partly-cloudy-day",
+        (Sky::PartlyCloudy, false) => "weather-partly-cloudy-night",
+        (Sky::Cloudy, _) => "weather-cloudy",
+        (Sky::Fog, _) => "weather-fog",
+        (Sky::Drizzle, _) => "weather-drizzle",
+        (Sky::Rain, _) => "weather-rain",
+        (Sky::Snow, _) => "weather-snow",
+        (Sky::Thunder, _) => "weather-thunder",
+    }
 }
 
-/// Draw the glyph for `code` filling the square `rect`. `day` picks sun or
-/// moon for the clear and partly-cloudy skies.
+/// Draw the glyph for `code` filling the square `rect`. The weather glyphs
+/// carry their own colours, so they are drawn untinted.
 pub fn draw(pc: &mut PaintCtx, rect: Rect, code: u8, day: bool) {
-    let s = rect.width.min(rect.height);
-    let (cx, cy) = (rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
     let (sky, _) = describe(code);
-    match sky {
-        Sky::Clear => orb(pc, cx, cy, s * 0.5, day),
-        Sky::PartlyCloudy => {
-            orb(pc, cx + s * 0.14, cy - s * 0.14, s * 0.36, day);
-            cloud(pc, cx - s * 0.06, cy + s * 0.10, s * 0.62, CLOUD);
-        }
-        Sky::Cloudy => {
-            cloud(pc, cx + s * 0.12, cy - s * 0.10, s * 0.5, CLOUD_DARK);
-            cloud(pc, cx - s * 0.05, cy + s * 0.06, s * 0.72, CLOUD);
-        }
-        Sky::Fog => {
-            cloud(pc, cx, cy - s * 0.12, s * 0.62, CLOUD_DARK);
-            let t = (s * 0.06).max(1.5);
-            for (i, w) in [0.62f32, 0.48, 0.56].iter().enumerate() {
-                let y = cy + s * (0.14 + 0.12 * i as f32);
-                let off = if i % 2 == 0 { -s * 0.04 } else { s * 0.05 };
-                pc.vector(cx - s * w / 2.0 + off, y, cx + s * w / 2.0 + off, y, t, lin(CLOUD), Cap::Round);
-            }
-        }
-        Sky::Drizzle | Sky::Rain => {
-            cloud(pc, cx, cy - s * 0.12, s * 0.72, CLOUD);
-            let heavy = sky == Sky::Rain;
-            let t = (s * if heavy { 0.065 } else { 0.05 }).max(1.5);
-            let len = s * if heavy { 0.18 } else { 0.1 };
-            for i in 0..3 {
-                let x = cx + s * (-0.18 + 0.18 * i as f32);
-                let y = cy + s * 0.18 + if i == 1 { s * 0.06 } else { 0.0 };
-                pc.vector(x, y, x - len * 0.4, y + len, t, lin(RAIN), Cap::Round);
-            }
-        }
-        Sky::Snow => {
-            cloud(pc, cx, cy - s * 0.12, s * 0.72, CLOUD);
-            for i in 0..3 {
-                let x = cx + s * (-0.18 + 0.18 * i as f32);
-                let y = cy + s * 0.26 + if i == 1 { s * 0.07 } else { 0.0 };
-                flake(pc, x, y, s * 0.075);
-            }
-        }
-        Sky::Thunder => {
-            cloud(pc, cx, cy - s * 0.14, s * 0.72, CLOUD_DARK);
-            let t = (s * 0.06).max(1.5);
-            let pts = [
-                (cx + s * 0.04, cy + s * 0.06),
-                (cx - s * 0.08, cy + s * 0.24),
-                (cx + s * 0.04, cy + s * 0.24),
-                (cx - s * 0.06, cy + s * 0.44),
-            ];
-            for w in pts.windows(2) {
-                pc.vector(w[0].0, w[0].1, w[1].0, w[1].1, t, lin(BOLT), Cap::Round);
-            }
-        }
-    }
-}
-
-/// The sun (disc and rays) or the moon (a crescent) inside a box `d` wide.
-fn orb(pc: &mut PaintCtx, cx: f32, cy: f32, d: f32, day: bool) {
-    if day {
-        let r = d * 0.26;
-        pc.circle(cx, cy, r, lin(SUN));
-        let t = (d * 0.06).max(1.2);
-        for i in 0..8 {
-            let a = i as f32 * TAU / 8.0;
-            let (sn, cs) = a.sin_cos();
-            let (r0, r1) = (r + d * 0.08, d * 0.48);
-            pc.vector(cx + cs * r0, cy + sn * r0, cx + cs * r1, cy + sn * r1, t, lin(SUN), Cap::Round);
-        }
-    } else {
-        // A thick arc reads as a crescent and needs no background colour to
-        // cut the inner disc away with.
-        let r = d * 0.36;
-        pc.arc(cx, cy, r, r * 0.55, PI * 0.35, PI * 1.55, lin(MOON));
-    }
-}
-
-/// A cloud `w` wide centred on (cx, cy): three puffs on a rounded base.
-fn cloud(pc: &mut PaintCtx, cx: f32, cy: f32, w: f32, color: [f32; 4]) {
-    let color = lin(color);
-    let h = w * 0.3;
-    let base = Rect { x: cx - w / 2.0, y: cy - h / 2.0 + w * 0.06, width: w, height: h };
-    pc.rounded_rect(base, h / 2.0, (true, true, true, true), color);
-    pc.circle(cx - w * 0.18, cy, w * 0.2, color);
-    pc.circle(cx + w * 0.08, cy - w * 0.08, w * 0.26, color);
-    pc.circle(cx + w * 0.3, cy + w * 0.04, w * 0.15, color);
-}
-
-/// A six-armed snowflake of radius `r`.
-fn flake(pc: &mut PaintCtx, cx: f32, cy: f32, r: f32) {
-    let t = (r * 0.35).max(1.2);
-    for i in 0..3 {
-        let a = i as f32 * PI / 3.0 + PI / 2.0;
-        let (sn, cs) = a.sin_cos();
-        pc.vector(cx - cs * r, cy - sn * r, cx + cs * r, cy + sn * r, t, lin(SNOW), Cap::Round);
-    }
+    pc.icon_untinted(icon_name(sky, day), rect, 1.0);
 }
 
 #[cfg(test)]
@@ -175,5 +82,24 @@ mod tests {
             assert_ne!(describe(code).1, "Unknown", "code {code}");
         }
         assert_eq!(describe(42).1, "Unknown");
+    }
+
+    /// Every glyph named is one the cce-icons set ships.
+    #[test]
+    fn every_sky_names_a_shipped_glyph() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../cce-icons/svg");
+        if !dir.is_dir() {
+            eprintln!("skipping: no cce-icons checkout beside this crate");
+            return;
+        }
+        let skies = [Sky::Clear, Sky::PartlyCloudy, Sky::Cloudy, Sky::Fog, Sky::Drizzle, Sky::Rain, Sky::Snow, Sky::Thunder];
+        for sky in skies {
+            for day in [true, false] {
+                let name = icon_name(sky, day);
+                assert!(dir.join(format!("{name}.svg")).is_file(), "{sky:?} day={day}: no {name}.svg");
+            }
+        }
+        assert_ne!(icon_name(Sky::Clear, true), icon_name(Sky::Clear, false));
+        assert_ne!(icon_name(Sky::PartlyCloudy, true), icon_name(Sky::PartlyCloudy, false));
     }
 }
