@@ -37,7 +37,6 @@ use config::{Location, State, Units};
 
 /// How many geocoder matches the picker offers.
 const MAX_RESULTS: usize = 5;
-const CONTROL_H: f32 = 30.0;
 /// Fixed pane heights; the daily pane takes what is left.
 const NOW_H: f32 = 156.0;
 const HOURLY_H: f32 = 172.0;
@@ -309,12 +308,14 @@ impl WeatherApp {
         let (w, h) = self.size;
         let mut arena: Arena<LayoutBox> = Arena::new();
         let root = arena.insert(LayoutBox::container(Style::root_column()));
+        let box_h = cce_ui::layout::textbox_height();
+        let btn_h = cce_ui::layout::button_height();
         let controls = arena.insert(LayoutBox::container(
-            Style::controls_row().height(Length::Fixed(CONTROL_H)),
+            Style::controls_row().height(Length::Fixed(box_h.max(btn_h))),
         ));
-        let search = arena.insert(LayoutBox::leaf(Style::row().grow(1.0).shrink(1.0), LSize::new(0.0, CONTROL_H)));
-        let units = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(52.0, CONTROL_H)));
-        let refresh = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(CONTROL_H, CONTROL_H)));
+        let search = arena.insert(LayoutBox::leaf(Style::row().grow(1.0).shrink(1.0), LSize::new(0.0, box_h)));
+        let units = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(52.0, btn_h)));
+        let refresh = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(btn_h, btn_h)));
         let now = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(0.0, NOW_H)));
         let hourly = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(0.0, HOURLY_H)));
         let daily = arena.insert(LayoutBox::container(Style::column().grow(1.0)));
@@ -343,7 +344,7 @@ impl WeatherApp {
         let bottom = self.daily_rect.y + self.daily_rect.height;
         self.results_rect = Rect { x: self.now_rect.x, y: top, width: self.now_rect.width, height: bottom - top };
         let pad = plate_padding();
-        let row_h = cce_ui::layout::button_height().max(CONTROL_H);
+        let row_h = btn_h;
         let picking = self.picking();
         for (i, b) in self.results_btns.iter_mut().enumerate() {
             match self.results.get(i) {
