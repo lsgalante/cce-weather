@@ -191,13 +191,6 @@ impl WeatherApp {
         ids
     }
 
-    fn roots(&mut self) -> Vec<*mut (dyn WidgetHost + 'static)> {
-        let mut v: Vec<*mut (dyn WidgetHost + 'static)> =
-            vec![self.search.as_ptr_mut(), self.units_btn.as_ptr_mut(), self.refresh_btn.as_ptr_mut()];
-        v.extend(self.results_btns.iter_mut().map(|b| b.as_ptr_mut()));
-        v
-    }
-
     fn picking(&self) -> bool {
         !self.results.is_empty()
     }
@@ -762,12 +755,11 @@ impl Application for WeatherApp {
     fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<DisplayList> {
         if !self.widgets_registered {
             self.widgets_registered = true;
-            let self_ptr = self as *mut Self;
-            unsafe {
-                for w in (*self_ptr).roots() {
-                    let id = (*w).base().id();
-                    self.ui_context.register_widget(id, w);
-                }
+            self.ui_context.register_host(&mut self.search);
+            self.ui_context.register_host(&mut self.units_btn);
+            self.ui_context.register_host(&mut self.refresh_btn);
+            for b in self.results_btns.iter_mut() {
+                self.ui_context.register_host(b);
             }
         }
         let size_changed = self.size != (size.width, size.height) || self.scale != scale;
