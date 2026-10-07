@@ -833,6 +833,15 @@ impl Application for WeatherApp {
     }
 
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
+        // The shared context menu (the search box's) gets the pointer to itself
+        // while open: its row highlight.
+        if cce_ui::widget::context_menu::is_visible() {
+            if cce_ui::widget::context_menu::cursor_moved(pos.x, pos.y) {
+                self.needs_rebuild = true;
+                *needs_rebuild = true;
+            }
+            return;
+        }
         let ev = Event::PointerMove { x: pos.x, y: pos.y, local_x: pos.x, local_y: pos.y };
         if self.route(&ev, false) || self.needs_rebuild {
             self.needs_rebuild = true;
@@ -847,6 +856,19 @@ impl Application for WeatherApp {
         pos: LogicalPosition,
         needs_rebuild: &mut bool,
     ) -> Option<Self::Message> {
+        // The shared context menu a right-click on the search box opens takes
+        // every click while open: a row runs, a press anywhere else dismisses it.
+        // The toolkit leaves this routing to the app; without it the menu could
+        // not be closed by clicking outside it, and its rows did nothing. A row's
+        // edit (Paste, Cut) is drained like any other change to the box.
+        if cce_ui::widget::context_menu::is_visible() {
+            if cce_ui::widget::context_menu::mouse_input(button, state, pos.x, pos.y, Some(&mut self.ui_context)) {
+                self.drain_widget_changes();
+                self.needs_rebuild = true;
+                *needs_rebuild = true;
+            }
+            return None;
+        }
         let ev = Event::MouseButton { button, state, x: pos.x, y: pos.y, local_x: pos.x, local_y: pos.y };
         if self.route(&ev, false) || self.needs_rebuild {
             self.needs_rebuild = true;
