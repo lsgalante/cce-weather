@@ -16,10 +16,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
-use wayland_client::QueueHandle;
 
 use cce_ui::widget::Owned;
-use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
+use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::layout::{
     align_text_y, bevel_width, control_gap, list_font_parsed, plate_corner_radius,
     plate_padding,
@@ -637,7 +636,9 @@ impl WeatherApp {
 impl Application for WeatherApp {
     type Message = Message;
 
-    fn new(_qh: &QueueHandle<EngineState<Self>>, sender: calloop::channel::Sender<Self::Message>) -> Self {
+    fn create(sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
+        // The app keeps calloop's sender; `AppSender` converts into it.
+        let sender: calloop::channel::Sender<Self::Message> = sender.into();
         let config = config::load_config();
         let state = config::load_state();
         let units = config::resolve_units(&state, &config);
