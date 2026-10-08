@@ -273,7 +273,7 @@ impl WeatherApp {
             if self.results_btns[i].take_click() {
                 if let Some(loc) = self.results.get(i).cloned() {
                     self.clear_search();
-                    self.search.unfocus();
+                    self.ui_context.unfocus_widget(&mut self.search);
                     self.set_location(loc);
                 }
             }
@@ -727,7 +727,7 @@ impl Application for WeatherApp {
                     // One match needs no question.
                     Ok(mut list) if list.len() == 1 => {
                         self.clear_search();
-                        self.search.unfocus();
+                        self.ui_context.unfocus_widget(&mut self.search);
                         self.set_location(list.remove(0));
                     }
                     Ok(list) => self.results = list,
@@ -902,7 +902,7 @@ impl Application for WeatherApp {
                 }
                 Key::Named(NamedKey::Escape) if self.picking() || self.search.editing => {
                     self.results.clear();
-                    self.search.unfocus();
+                    self.ui_context.unfocus_widget(&mut self.search);
                     self.needs_rebuild = true;
                     *needs_rebuild = true;
                     return None;
