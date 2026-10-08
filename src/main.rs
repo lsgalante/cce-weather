@@ -18,6 +18,7 @@ use std::sync::Arc;
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
 use wayland_client::QueueHandle;
 
+use cce_ui::widget::Owned;
 use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::layout::{
     align_text_y, bevel_width, control_gap, list_font_parsed, plate_corner_radius,
@@ -148,10 +149,10 @@ fn spawn_timer(sender: calloop::channel::Sender<Message>, last_fetch: Arc<Atomic
 struct WeatherApp {
     // Widgets: plain fields so their addresses are stable (the UiContext
     // registry holds pointers to them).
-    search: Adapted<TextBox>,
-    units_btn: Adapted<Button>,
-    refresh_btn: Adapted<Button>,
-    results_btns: [Adapted<Button>; MAX_RESULTS],
+    search: Owned<Adapted<TextBox>>,
+    units_btn: Owned<Adapted<Button>>,
+    refresh_btn: Owned<Adapted<Button>>,
+    results_btns: [Owned<Adapted<Button>>; MAX_RESULTS],
 
     // App state — the source of truth; widgets are re-asserted from it.
     location: Option<Location>,
@@ -650,10 +651,10 @@ impl Application for WeatherApp {
         spawn_timer(sender.clone(), last_fetch.clone(), config.refresh_minutes);
 
         let mut app = Self {
-            search: TextBox::new(String::new()).with_placeholder("Search for a city…"),
-            units_btn: Button::new(0.0, 0.0, 0.0, 0.0).with_label(units.toggled().temp_suffix()),
-            refresh_btn: Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "Refresh"),
-            results_btns: std::array::from_fn(|_| Button::new_list_row(0.0, 0.0, 0.0, 0.0).with_label("")),
+            search: Owned::new(TextBox::new(String::new()).with_placeholder("Search for a city…")),
+            units_btn: Owned::new(Button::new(0.0, 0.0, 0.0, 0.0).with_label(units.toggled().temp_suffix())),
+            refresh_btn: Owned::new(Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "Refresh")),
+            results_btns: std::array::from_fn(|_| Owned::new(Button::new_list_row(0.0, 0.0, 0.0, 0.0).with_label(""))),
             chosen_location: state.location.clone(),
             chosen_units: state.units,
             location,
