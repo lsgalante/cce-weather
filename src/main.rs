@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
 
-use cce_ui::widget::Owned;
+use cce_ui::widget::Handle;
 use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::layout::{
     align_text_y, bevel_width, control_gap, list_font_parsed, plate_corner_radius,
@@ -148,10 +148,10 @@ fn spawn_timer(sender: calloop::channel::Sender<Message>, last_fetch: Arc<Atomic
 struct WeatherApp {
     // Widgets: plain fields so their addresses are stable (the UiContext
     // registry holds pointers to them).
-    search: Owned<Adapted<TextBox>>,
-    units_btn: Owned<Adapted<Button>>,
-    refresh_btn: Owned<Adapted<Button>>,
-    results_btns: [Owned<Adapted<Button>>; MAX_RESULTS],
+    search: Handle<Adapted<TextBox>>,
+    units_btn: Handle<Adapted<Button>>,
+    refresh_btn: Handle<Adapted<Button>>,
+    results_btns: [Handle<Adapted<Button>>; MAX_RESULTS],
 
     // App state — the source of truth; widgets are re-asserted from it.
     location: Option<Location>,
@@ -173,7 +173,6 @@ struct WeatherApp {
     sender: calloop::channel::Sender<Message>,
 
     ui_context: cce_ui::context::UiContext,
-    widgets_registered: bool,
     needs_rebuild: bool,
     size: (f32, f32),
     scale: f64,
@@ -237,14 +236,14 @@ impl WeatherApp {
     }
 
     fn search_value(&self) -> String {
-        let raw = if self.search.editing { &self.search.edit_buffer } else { &self.search.text };
+        let raw = if self.ui_context[self.search].editing { &self.ui_context[self.search].edit_buffer } else { &self.ui_context[self.search].text };
         raw.trim().to_string()
     }
 
     fn clear_search(&mut self) {
-        self.search.text.clear();
-        self.search.edit_buffer.clear();
-        self.search.cursor_idx = 0;
+        self.ui_context[self.search].text.clear();
+        self.ui_context[self.search].edit_buffer.clear();
+        self.ui_context[self.search].cursor_idx = 0;
     }
 
     fn submit_search(&mut self) {
@@ -263,22 +262,22 @@ impl WeatherApp {
     }
 
     fn drain_widget_changes(&mut self) {
-        if self.units_btn.take_click() {
+        if self.ui_context[self.units_btn].take_click() {
             self.toggle_units();
         }
-        if self.refresh_btn.take_click() {
+        if self.ui_context[self.refresh_btn].take_click() {
             self.refresh();
         }
         for i in 0..MAX_RESULTS {
-            if self.results_btns[i].take_click() {
+            if self.ui_context[self.results_btns[i]].take_click() {
                 if let Some(loc) = self.results.get(i).cloned() {
                     self.clear_search();
-                    self.ui_context.unfocus_widget(&mut self.search);
+                    self.ui_context.unfocus_id(self.search.id());
                     self.set_location(loc);
                 }
             }
         }
-        if self.search.take_change() {
+        if self.ui_context[self.search].take_change() {
             self.needs_rebuild = true;
         }
     }
@@ -323,11 +322,11 @@ impl WeatherApp {
 
         let r = |id| arena.value(id).unwrap().rect;
         let s = r(search);
-        self.search.set_rect(s.x, s.y, s.width, s.height);
+        self.ui_context[self.search].set_rect(s.x, s.y, s.width, s.height);
         let u = r(units);
-        self.units_btn.set_rect(u.x, u.y, u.width, u.height);
+        self.ui_context[self.units_btn].set_rect(u.x, u.y, u.width, u.height);
         let f = r(refresh);
-        self.refresh_btn.set_rect(f.x, f.y, f.width, f.height);
+        self.ui_context[self.refresh_btn].set_rect(f.x, f.y, f.width, f.height);
         self.now_rect = r(now);
         self.hourly_rect = r(hourly);
         self.daily_rect = r(daily);
@@ -339,7 +338,8 @@ impl WeatherApp {
         let pad = plate_padding();
         let row_h = btn_h;
         let picking = self.picking();
-        for (i, b) in self.results_btns.iter_mut().enumerate() {
+        for (i, &h) in self.results_btns.iter().enumerate() {
+            let b = &mut self.ui_context[h];
             match self.results.get(i) {
                 Some(loc) if picking => {
                     let label = if loc.region.is_empty() {
@@ -627,8 +627,8 @@ impl WeatherApp {
         self.pane(pc, rect);
         let pad = plate_padding();
         pc.text_with("Choose a place  (Esc to cancel)", rect.x + pad, rect.y + pad, size, fg, Some(font.to_string()), None);
-        for b in &self.results_btns {
-            cce_ui::scene::painter::paint_root_into(&self.ui_context, b, pc);
+        for &b in &self.results_btns {
+            cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[b], pc);
         }
     }
 }
@@ -651,11 +651,13 @@ impl Application for WeatherApp {
         let last_fetch = Arc::new(AtomicU64::new(fetched_at.unwrap_or(0) as u64));
         spawn_timer(sender.clone(), last_fetch.clone(), config.refresh_minutes);
 
+        // The context owns the widgets; the app keeps their handles.
+        let mut ui_context = cce_ui::context::UiContext::new();
         let mut app = Self {
-            search: Owned::new(TextBox::new(String::new()).with_placeholder("Search for a city…")),
-            units_btn: Owned::new(Button::new(0.0, 0.0, 0.0, 0.0).with_label(units.toggled().temp_suffix())),
-            refresh_btn: Owned::new(Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "Refresh")),
-            results_btns: std::array::from_fn(|_| Owned::new(Button::new_list_row(0.0, 0.0, 0.0, 0.0).with_label(""))),
+            search: ui_context.insert(TextBox::new(String::new()).with_placeholder("Search for a city…")),
+            units_btn: ui_context.insert(Button::new(0.0, 0.0, 0.0, 0.0).with_label(units.toggled().temp_suffix())),
+            refresh_btn: ui_context.insert(Button::new(0.0, 0.0, 0.0, 0.0).with_icon_name("refresh", "Refresh")),
+            results_btns: std::array::from_fn(|_| ui_context.insert(Button::new_list_row(0.0, 0.0, 0.0, 0.0).with_label(""))),
             chosen_location: state.location.clone(),
             chosen_units: state.units,
             location,
@@ -669,8 +671,7 @@ impl Application for WeatherApp {
             status: None,
             last_fetch,
             sender,
-            ui_context: cce_ui::context::UiContext::new(),
-            widgets_registered: false,
+            ui_context,
             needs_rebuild: true,
             size: (520.0, 720.0),
             scale: 1.0,
@@ -727,7 +728,7 @@ impl Application for WeatherApp {
                     // One match needs no question.
                     Ok(mut list) if list.len() == 1 => {
                         self.clear_search();
-                        self.ui_context.unfocus_widget(&mut self.search);
+                        self.ui_context.unfocus_id(self.search.id());
                         self.set_location(list.remove(0));
                     }
                     Ok(list) => self.results = list,
@@ -755,23 +756,14 @@ impl Application for WeatherApp {
     }
 
     fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<DisplayList> {
-        if !self.widgets_registered {
-            self.widgets_registered = true;
-            self.ui_context.register_host(&mut self.search);
-            self.ui_context.register_host(&mut self.units_btn);
-            self.ui_context.register_host(&mut self.refresh_btn);
-            for b in self.results_btns.iter_mut() {
-                self.ui_context.register_host(b);
-            }
-        }
         let size_changed = self.size != (size.width, size.height) || self.scale != scale;
         if self.needs_rebuild || size_changed {
             self.size = (size.width, size.height);
             self.scale = scale;
             cce_ui::scale::set_scale_factor(scale as f32);
             // The button names the unit it switches TO.
-            self.units_btn.set_label(self.units.toggled().temp_suffix());
-            self.search.set_placeholder(if self.searching { "Searching…" } else { "Search for a city…" });
+            self.ui_context[self.units_btn].set_label(self.units.toggled().temp_suffix());
+            self.ui_context[self.search].set_placeholder(if self.searching { "Searching…" } else { "Search for a city…" });
             self.layout();
             self.needs_rebuild = false;
             self.ui_context.rebuild_spatial_grid();
@@ -785,9 +777,9 @@ impl Application for WeatherApp {
 
         let mut pc = PaintCtx::new();
         pc.root_plate(size.width, size.height);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.search, &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.units_btn, &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.refresh_btn, &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.search], &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.units_btn], &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.refresh_btn], &mut pc);
 
         if self.picking() {
             self.paint_results(&mut pc, &font, size_pt, fg);
@@ -900,9 +892,9 @@ impl Application for WeatherApp {
                     *needs_rebuild = true;
                     return None;
                 }
-                Key::Named(NamedKey::Escape) if self.picking() || self.search.editing => {
+                Key::Named(NamedKey::Escape) if self.picking() || self.ui_context[self.search].editing => {
                     self.results.clear();
-                    self.ui_context.unfocus_widget(&mut self.search);
+                    self.ui_context.unfocus_id(self.search.id());
                     self.needs_rebuild = true;
                     *needs_rebuild = true;
                     return None;
@@ -910,7 +902,7 @@ impl Application for WeatherApp {
                 // The box's own edit mode, not `focused(&ctx)`: a click
                 // focuses through the thread-local registry, which the
                 // UiContext's focused_widget never learns of.
-                Key::Named(NamedKey::Enter) if self.search.editing => {
+                Key::Named(NamedKey::Enter) if self.ui_context[self.search].editing => {
                     self.submit_search();
                     *needs_rebuild = true;
                     return None;
