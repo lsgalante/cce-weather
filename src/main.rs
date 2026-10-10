@@ -628,7 +628,7 @@ impl WeatherApp {
         let pad = plate_padding();
         pc.text_with("Choose a place  (Esc to cancel)", rect.x + pad, rect.y + pad, size, fg, Some(font.to_string()), None);
         for &b in &self.results_btns {
-            cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[b], pc);
+            cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[b], pc);
         }
     }
 }
@@ -777,9 +777,9 @@ impl Application for WeatherApp {
 
         let mut pc = PaintCtx::new();
         pc.root_plate(size.width, size.height);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.search], &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.units_btn], &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.refresh_btn], &mut pc);
+        cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[self.search], &mut pc);
+        cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[self.units_btn], &mut pc);
+        cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[self.refresh_btn], &mut pc);
 
         if self.picking() {
             self.paint_results(&mut pc, &font, size_pt, fg);
