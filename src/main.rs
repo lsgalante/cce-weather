@@ -77,7 +77,7 @@ fn to_u8(c: [f32; 4]) -> [u8; 3] {
 }
 
 fn srgb_u8(linear: [f32; 4]) -> [u8; 3] {
-    to_u8(cce_ui::colors::to_srgb(linear))
+    to_u8(cce_ui::color::to_srgb(linear))
 }
 
 fn lin(c: [f32; 4]) -> [f32; 4] {
@@ -772,8 +772,8 @@ impl Application for WeatherApp {
         // The family alone: `list_font()` may carry a size, which would
         // override every size asked for here.
         let (font, size_pt) = list_font_parsed();
-        let fg = to_u8(cce_ui::colors::list_font_color());
-        let dim = srgb_u8(cce_ui::colors::TEXT_DIM);
+        let fg = to_u8(cce_ui::color::list_font_color());
+        let dim = srgb_u8(cce_ui::color::TEXT_DIM);
 
         let mut pc = PaintCtx::new();
         pc.root_plate(size.width, size.height);
