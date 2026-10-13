@@ -29,7 +29,7 @@ use cce_ui::scene::paint::{Cap, DisplayList, PaintCtx};
 use cce_ui::scene::Material;
 use cce_ui::widget::{
     Adapted, Button, ElementState, Event, Key, KeyEvent, MouseButton, MouseScrollDelta, NamedKey,
-    TextBox, WidgetHost, WidgetId,
+    TextBox, WidgetEvent, WidgetHost, WidgetId,
 };
 
 use api::Forecast;
@@ -261,25 +261,30 @@ impl WeatherApp {
         });
     }
 
-    fn drain_widget_changes(&mut self) {
-        if self.ui_context[self.units_btn].take_click() {
-            self.toggle_units();
-        }
-        if self.ui_context[self.refresh_btn].take_click() {
-            self.refresh();
-        }
-        for i in 0..MAX_RESULTS {
-            if self.ui_context[self.results_btns[i]].take_click() {
-                if let Some(loc) = self.results.get(i).cloned() {
-                    self.clear_search();
-                    self.ui_context.unfocus_id(self.search.id());
-                    self.set_location(loc);
+    /// Act on what the widgets reported since the last sweep
+    /// (`UiContext::take_events`). Run after every dispatch path — each
+    /// routed event, a context-menu row, and `tick` — so a keyboard or
+    /// assistive activation lands in the turn it happened. Returns whether
+    /// anything was reported.
+    fn drain_widget_changes(&mut self) -> bool {
+        let events = self.ui_context.take_events();
+        for &(id, ref ev) in &events {
+            match ev {
+                WidgetEvent::Clicked if id == self.units_btn.id() => self.toggle_units(),
+                WidgetEvent::Clicked if id == self.refresh_btn.id() => self.refresh(),
+                WidgetEvent::Clicked => {
+                    let picked = self.results_btns.iter().position(|b| b.id() == id).and_then(|i| self.results.get(i).cloned());
+                    if let Some(loc) = picked {
+                        self.clear_search();
+                        self.ui_context.unfocus_id(self.search.id());
+                        self.set_location(loc);
+                    }
                 }
+                WidgetEvent::Changed if id == self.search.id() => self.needs_rebuild = true,
+                _ => {}
             }
         }
-        if self.ui_context[self.search].take_change() {
-            self.needs_rebuild = true;
-        }
+        !events.is_empty()
     }
 
     fn route(&mut self, ev: &Event, short_circuit: bool) -> bool {
@@ -751,6 +756,12 @@ impl Application for WeatherApp {
 
     fn tick(&mut self, dt: f32, needs_rebuild: &mut bool) {
         if self.ui_context.tick(dt) {
+            *needs_rebuild = true;
+        }
+        // An assistive tool's SetValue on the search box arrives between
+        // inputs; sweep here so it is not held until the next one.
+        if self.drain_widget_changes() {
+            self.needs_rebuild = true;
             *needs_rebuild = true;
         }
     }
