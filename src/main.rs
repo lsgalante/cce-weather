@@ -58,7 +58,8 @@ const TRACK: [f32; 4] = [1.0, 1.0, 1.0, 0.08];
 
 #[derive(Debug, Clone)]
 enum Message {
-    Forecast { generation: u64, result: Result<Forecast, String> },
+    /// Boxed: a forecast is ~400 bytes, every other message a few dozen.
+    Forecast { generation: u64, result: Box<Result<Forecast, String>> },
     Geocoded { query: String, result: Result<Vec<Location>, String> },
     /// The timer thread: a refresh is due by wall clock.
     RefreshDue,
@@ -211,7 +212,7 @@ impl WeatherApp {
         let (generation, units, sender) = (self.generation, self.units, self.sender.clone());
         std::thread::spawn(move || {
             let result = api::fetch_forecast(&loc, units);
-            let _ = sender.send(Message::Forecast { generation, result });
+            let _ = sender.send(Message::Forecast { generation, result: Box::new(result) });
         });
     }
 
@@ -708,7 +709,7 @@ impl Application for WeatherApp {
                     return;
                 }
                 self.loading = false;
-                match result {
+                match *result {
                     Ok(f) => {
                         self.forecast = Some(f);
                         let now = now_unix();
@@ -875,7 +876,7 @@ impl Application for WeatherApp {
     }
 
     fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, pos: LogicalPosition, needs_rebuild: &mut bool) {
-        let ev = Event::MouseWheel { delta: delta.clone(), x: pos.x, y: pos.y, local_x: pos.x, local_y: pos.y };
+        let ev = Event::MouseWheel { delta: *delta, x: pos.x, y: pos.y, local_x: pos.x, local_y: pos.y };
         if self.route(&ev, false) || self.needs_rebuild {
             self.needs_rebuild = true;
             *needs_rebuild = true;
